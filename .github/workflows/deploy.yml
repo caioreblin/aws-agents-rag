@@ -1,0 +1,50 @@
+name: deploy-infra
+
+# Deploya a stack CDK no push para `main`. Autentica na AWS via OIDC (sem
+# access keys de longa duração). Ver specs/phase-0-foundation (R6).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch: {} # permite rodar manualmente pela aba Actions
+
+# Evita deploys concorrentes pisando um no outro.
+concurrency:
+  group: deploy-infra-main
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # necessário para o OIDC emitir o token
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::106537046215:role/github-actions-deploy-aws-agents-rag
+          aws-region: us-east-1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: CDK deploy
+        run: npx cdk deploy --require-approval never
