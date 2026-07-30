@@ -48,7 +48,13 @@ export class FoundationStack extends cdk.Stack {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
         },
         StringLike: {
-          'token.actions.githubusercontent.com:sub': `repo:${GITHUB_REPO}:ref:refs/heads/main`,
+          // O GitHub emite o `sub` como `repo:OWNER/REPO@<repo_id>:ref:...`
+          // (o `<repo_id>` é o ID numérico imutável do repositório). Aceitamos
+          // ambos os formatos (com e sem `@id`) e apenas pushes na branch main.
+          'token.actions.githubusercontent.com:sub': [
+            `repo:${GITHUB_REPO}:ref:refs/heads/main`,
+            `repo:${GITHUB_REPO}@*:ref:refs/heads/main`,
+          ],
         },
       }),
     });
