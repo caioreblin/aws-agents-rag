@@ -15,8 +15,17 @@
 
 - **Framework: Strands Agents SDK (Python).** Nativo AWS, loop model-driven, Bedrock
   first-class, **cliente MCP nativo**. (Ver ADR do PLAN.) *(R2, R3)*
-- **Modelo: Claude Haiku** no loop (barato). Se o modelo exigir **inference profile**
-  (cross-region) no Bedrock, usar o ID de perfil correspondente em us-east-1. *(R7)*
+- **Modelo: Claude Haiku 4.5** via inference profile
+  **`us.anthropic.claude-haiku-4-5-20251001-v1:0`** (o modelo base
+  `anthropic.claude-haiku-4-5-20251001-v1:0` só aceita INFERENCE_PROFILE em
+  us-east-1). Fallback: Claude 3 Haiku on-demand
+  `anthropic.claude-3-haiku-20240307-v1:0`. *(R7)*
+- **⚠️ Bloqueio de cota (conta nova):** a cota *"Model invocation max tokens per day"*
+  está em **0 e é não-ajustável** para os modelos Claude nesta conta (criada em
+  2026-07-30) — a AWS libera automaticamente com o tempo (24h a poucos dias). Por
+  isso construímos tudo primeiro; a invocação do Bedrock "acende" quando a cota subir.
+  Para desenvolver/testar sem depender disso, usar um **modo mock** do cliente Bedrock
+  no loop (flag de ambiente) até a cota liberar.
 - **Tools atrás de MCP desde a v1:** um **servidor MCP de conhecimento** (Python, em
   `services/mcp-servers/knowledge/`) expõe as tools via **transporte stdio**. O núcleo
   do agente (`services/agent/`) conecta como **cliente MCP**, faz `list_tools` e
