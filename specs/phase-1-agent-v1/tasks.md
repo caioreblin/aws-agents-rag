@@ -1,0 +1,23 @@
+# Fase 1 — Agente v1 · `tasks.md`
+
+Execução **item por item**. `( )` = requisito atendido (ver `requirements.md`).
+Ordem: primeiro as tools atrás de MCP e o núcleo (o coração do aprendizado),
+depois auth/infra, depois frontend e provas.
+
+- [ ] **1.1 — Resolver modelo e cota Bedrock.** Escolher o ID do **Claude Haiku** em us-east-1 (confirmar se exige **inference profile** cross-region); fazer uma invocação de teste; se der `ThrottlingException`, pedir aumento em **Service Quotas → Amazon Bedrock**. *Motivação:* é a pendência herdada da Fase 0; sem um modelo invocável, nada do agente roda. *(R7)*
+- [ ] **1.2 — Servidor MCP de conhecimento.** Em `services/mcp-servers/knowledge/`, criar um servidor **MCP (stdio)** em Python expondo `get_current_time`, `calculator` (avaliação aritmética segura) e `echo_note`. *Motivação:* começar pelas tools **atrás de MCP** fixa o contrato plug-and-play desde o primeiro código. *(R3)*
+- [ ] **1.3 — Cliente MCP no núcleo.** Em `services/agent/src/agent/mcp_client.py`, conectar ao servidor MCP (subprocesso stdio), fazer `list_tools` e expor um meio de `call_tool` — **sem importar a implementação das tools**. *Motivação:* garante que o núcleo só conhece o protocolo, não as ferramentas (troca sem refatorar). *(R3)*
+- [ ] **1.4 — Loop agêntico (Strands + Bedrock).** Em `loop.py`, montar o agente com **Strands**, registrando as tools **descobertas via MCP**, usando **Claude Haiku**, com **cap de iterações** e **`max_tokens`**. *Motivação:* é o think→act→observe; os caps evitam loop infinito e gasto descontrolado de tokens. *(R2, R4)*
+- [ ] **1.5 — Handler Lambda fino + logs.** `handler.py`: valida entrada, gera/propaga `correlationId`, delega ao loop, traduz resposta/erro (nada de 500 cru); **logging JSON estruturado**. *Motivação:* fronteira fina e observabilidade desde já (Backend Standards). *(R4, R5)*
+- [ ] **1.6 — Cognito.** No `agent-stack.ts`: User Pool + App Client + domínio do **Hosted UI**, com **callback `http://localhost:<porta>`**. *Motivação:* auth gerenciada sem implementar login à mão; Hosted UI dá o JWT que o API vai exigir. *(R1, R6)*
+- [ ] **1.7 — Infra do agente (agent-stack).** Lambda do agente com **bundling Docker** (deps `strands-agents`, `mcp`, `boto3`), rota no **HTTP API protegida por JWT authorizer** (Cognito), e **IAM mínima** (invocar só o modelo Bedrock escolhido + logs). *Motivação:* least-privilege e o endpoint autenticado de verdade. *(R1, R4, R7)*
+- [ ] **1.8 — Deploy e outputs.** Deployar (local e/ou via CI) e coletar outputs: URL do endpoint do agente, domínio do Hosted UI e App Client ID. *Motivação:* dados que o frontend precisa para logar e chamar o agente.
+- [ ] **1.9 — Frontend mínimo.** Em `packages/frontend/` (TS, ex.: Vite): login no **Hosted UI**, guardar o JWT, enviar mensagem ao agente e exibir a resposta. Roda **local**. *Motivação:* ver o agente "de verdade" e exercitar o fluxo de token OAuth. *(R6)*
+- [ ] **1.10 — Prova ponta a ponta.** Logar no frontend → perguntar algo que dispara uma tool (ex.: "que horas são?" / "quanto é 12*9?") → receber a resposta correta indicando a ferramenta usada. *Motivação:* é o critério de "pronto" da fase. *(R1, R2, R3)*
+- [ ] **1.11 — Provar plug-and-play (MCP).** Adicionar uma **4ª tool** no servidor MCP e confirmar que o agente passa a usá-la **sem nenhuma alteração no núcleo**. *Motivação:* valida o requisito central (troca de tools sem refatorar o agente) e prepara a migração futura para tools de Ops. *(R3)*
+- [ ] **1.12 — Documentar.** Atualizar `README.md` e escrever ADRs relevantes (Strands, MCP stdio in-process, Cognito Hosted UI). *Motivação:* manter o rastro de decisões e o onboarding do repo.
+
+## Critério de "pronto" da Fase 1
+R1–R7 satisfeitos — usuário autenticado dispara uma tool via MCP e recebe resposta
+correta; adicionar uma tool não altera o núcleo. Ao fechar, gerar o spec da **Fase 2**
+(Memória + RAG).
