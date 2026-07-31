@@ -9,7 +9,10 @@ e frontend.
 
 ## Status
 
-Em construção — **Fase 0 (Fundação)**. Roadmap completo em [`PLAN.md`](PLAN.md).
+**Fase 1 (Agente v1) concluída** — agente com loop agêntico (Strands), tools via
+MCP, atrás de API Gateway + Cognito, deployado. Bedrock roda em **modo mock** até
+a cota de conta nova liberar (ver [spec da Fase 1](specs/phase-1-agent-v1/)).
+Roadmap completo em [`PLAN.md`](PLAN.md).
 
 ## Metodologia
 
@@ -17,7 +20,35 @@ Spec-Driven Development (trio estilo Kiro). Cada fase tem um spec em
 [`specs/`](specs/) com `requirements.md` + `design.md` + `tasks.md`. A execução
 segue **fase por fase e item por item**.
 
-- Fase atual: [`specs/phase-0-foundation/`](specs/phase-0-foundation/)
+- [`specs/phase-0-foundation/`](specs/phase-0-foundation/) — ✅ concluída
+- [`specs/phase-1-agent-v1/`](specs/phase-1-agent-v1/) — ✅ concluída
+
+## Rodar (Fase 1)
+
+O backend (Lambda do agente + Cognito + API) já está deployado via CDK. Para
+conversar com o agente pelo frontend local:
+
+```bash
+cd packages/frontend
+npm install
+npm run dev          # http://localhost:5173 — login via Cognito Hosted UI
+```
+
+Desenvolvimento local do agente (sem AWS), em modo mock:
+
+```bash
+cd services/agent
+uv sync
+BEDROCK_MOCK=true uv run python -c "from agent.loop import run_agent; print(run_agent('quanto é 12*9?', 'local'))"
+```
+
+Infra (deploy):
+
+```bash
+cd infra
+aws sso login --profile poc
+cdk deploy AgentStack --profile poc   # requer Docker rodando (bundling da Lambda)
+```
 
 ## Arquitetura de referência (alvo)
 

@@ -23,6 +23,7 @@ venv/
 .env
 .env.*
 *.local
+!.env.example
 
 # AWS
 .aws-sam/

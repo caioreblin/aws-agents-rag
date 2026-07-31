@@ -61,6 +61,12 @@ def echo_note(note: str) -> str:
     return f"Nota registrada: {text}"
 
 
+@mcp.tool()
+def word_count(text: str) -> str:
+    """Conta quantas palavras há no texto informado."""
+    return f"{len(text.split())} palavra(s)."
+
+
 def main() -> None:
     """Entrypoint: roda o servidor MCP no transporte stdio."""
     mcp.run()

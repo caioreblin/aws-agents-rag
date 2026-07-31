@@ -1,15 +1,23 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { FoundationStack } from '../lib/foundation-stack';
+import { AgentStack } from '../lib/agent-stack';
 
 const app = new cdk.App();
 
+// Conta vem do ambiente/perfil (profile `poc`); região fixada em us-east-1
+// conforme a restrição do projeto.
+const env = {
+  account: process.env.CDK_DEFAULT_ACCOUNT,
+  region: 'us-east-1',
+};
+
 new FoundationStack(app, 'FoundationStack', {
-  // Conta vem do ambiente/perfil (profile `poc`); região fixada em us-east-1
-  // conforme a restrição do projeto.
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: 'us-east-1',
-  },
+  env,
   description: 'Fase 0 — fundação: GitHub OIDC, role de deploy e Lambda hello + HTTP API',
+});
+
+new AgentStack(app, 'AgentStack', {
+  env,
+  description: 'Fase 1 — agente v1: Cognito (auth) + Lambda do agente + HTTP API protegido',
 });
