@@ -8,10 +8,19 @@ import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 
 /**
- * Repositório GitHub autorizado a assumir a role de deploy via OIDC.
- * Usado na condição `sub` da trust policy (task 0.11).
+ * Identidade do repositório GitHub autorizado a assumir a role de deploy via
+ * OIDC (task 0.11).
+ *
+ * O `sub` do token OIDC do GitHub usa hoje o formato "immutable subject claim",
+ * que inclui os IDs numéricos imutáveis do dono e do repositório:
+ *   repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/<branch>
+ * Pinamos por esses IDs (únicos e à prova de rename) em vez de só pelo nome.
+ * Descobrir via: gh api repos/<owner>/<repo> --jq .id  e  gh api users/<owner> --jq .id
  */
-const GITHUB_REPO = 'caioreblin/aws-agents-rag';
+const GITHUB_OWNER = 'caioreblin';
+const GITHUB_REPO_NAME = 'aws-agents-rag';
+const GITHUB_OWNER_ID = '42477120';
+const GITHUB_REPO_ID = '1317309414';
 
 /**
  * FoundationStack — Fase 0.
@@ -48,12 +57,12 @@ export class FoundationStack extends cdk.Stack {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
         },
         StringLike: {
-          // O GitHub emite o `sub` como `repo:OWNER/REPO@<repo_id>:ref:...`
-          // (o `<repo_id>` é o ID numérico imutável do repositório). Aceitamos
-          // ambos os formatos (com e sem `@id`) e apenas pushes na branch main.
+          // Cobre o formato "immutable subject" (com owner_id + repo_id, que a
+          // action configure-aws-credentials envia hoje) e o formato clássico
+          // como fallback — sempre restrito à branch main.
           'token.actions.githubusercontent.com:sub': [
-            `repo:${GITHUB_REPO}:ref:refs/heads/main`,
-            `repo:${GITHUB_REPO}@*:ref:refs/heads/main`,
+            `repo:${GITHUB_OWNER}@${GITHUB_OWNER_ID}/${GITHUB_REPO_NAME}@${GITHUB_REPO_ID}:ref:refs/heads/main`,
+            `repo:${GITHUB_OWNER}/${GITHUB_REPO_NAME}:ref:refs/heads/main`,
           ],
         },
       }),
