@@ -61,8 +61,10 @@ export class MemoryRagStack extends cdk.Stack {
 
     // Vector store barato: bucket + índice de vetores S3 Vectors (pay-per-use,
     // sem compute ligado). Nome com account id para unicidade global.
+    // Atenção: o S3 Vectors reserva o prefixo "aws" (deploy falha com
+    // "bucket name is reserved") — por isso, sem o prefixo `aws-` aqui.
     const vectorBucket = new s3vectors.CfnVectorBucket(this, 'VectorBucket', {
-      vectorBucketName: `aws-agents-rag-vectors-${this.account}`,
+      vectorBucketName: `agents-rag-vectors-${this.account}`,
     });
     // O destroy só apaga bucket de vetores vazio; solta em estudo.
     vectorBucket.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
