@@ -5,6 +5,7 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
@@ -15,6 +16,14 @@ export interface AgentStackProps extends cdk.StackProps {
    * origem permitida no CORS. Default: http://localhost:5173.
    */
   readonly frontendUrls?: string[];
+
+  // --- Fase 2.8 — dependências cross-stack do MemoryRagStack --------------
+  /** Tabela de memória (DynamoDB): env `MEMORY_TABLE_NAME` + grant PutItem/Query. */
+  readonly memoryTable: dynamodb.ITable;
+  /** ID da Bedrock Knowledge Base (RAG): env `KNOWLEDGE_BASE_ID`. */
+  readonly knowledgeBaseId: string;
+  /** ARN da Bedrock Knowledge Base: escopo do `bedrock:Retrieve`. */
+  readonly knowledgeBaseArn: string;
 }
 
 // Modelo do agente (Haiku 4.5 via inference profile — ver design da Fase 1).
@@ -35,10 +44,10 @@ export class AgentStack extends cdk.Stack {
   public readonly userPoolClient: cognito.UserPoolClient;
   public readonly userPoolDomain: cognito.UserPoolDomain;
 
-  constructor(scope: Construct, id: string, props?: AgentStackProps) {
+  constructor(scope: Construct, id: string, props: AgentStackProps) {
     super(scope, id, props);
 
-    const frontendUrls = props?.frontendUrls ?? ['http://localhost:5173'];
+    const frontendUrls = props.frontendUrls ?? ['http://localhost:5173'];
 
     // --- 1.6 — Cognito ----------------------------------------------------
     this.userPool = new cognito.UserPool(this, 'AgentUserPool', {
@@ -120,9 +129,27 @@ export class AgentStack extends cdk.Stack {
         BEDROCK_MOCK: 'true',
         AGENT_MAX_ITERATIONS: '6',
         AGENT_MAX_TOKENS: '1024',
+        // Memória (DynamoDB) e RAG (Bedrock KB) — cross-stack (2.8). A env é
+        // herdada pelo subprocesso do servidor MCP (ver `mcp_client.py`), que
+        // usa `KNOWLEDGE_BASE_ID` na tool `search_knowledge_base`.
+        MEMORY_TABLE_NAME: props.memoryTable.tableName,
+        KNOWLEDGE_BASE_ID: props.knowledgeBaseId,
         // AWS_REGION é injetada pela própria Lambda (é reservada, não setar aqui).
       },
     });
+
+    // --- 2.8 — IAM cross-stack (least-privilege) --------------------------
+    // Memória: gravar turno + ler histórico (só PutItem/Query na tabela).
+    props.memoryTable.grant(agentFn, 'dynamodb:PutItem', 'dynamodb:Query');
+
+    // RAG: recuperar trechos da Knowledge Base (retrieve puro), escopo na KB.
+    agentFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: 'RetrieveFromKnowledgeBase',
+        actions: ['bedrock:Retrieve'],
+        resources: [props.knowledgeBaseArn],
+      }),
+    );
 
     // IAM mínima: invocar SÓ o Haiku 4.5 (modelo base em qualquer região que o
     // inference profile roteia + o próprio profile na conta).
