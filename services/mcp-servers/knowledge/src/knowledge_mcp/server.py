@@ -11,12 +11,14 @@ o schema de entrada e a docstring vira a descrição que o modelo enxerga.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone as dt_timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
 from knowledge_mcp.calculator import CalculatorError, evaluate_expression
+from knowledge_mcp.retrieval import MAX_TOP_K, RetrievalError, format_passages, retrieve
 
 mcp = FastMCP("knowledge")
 
@@ -65,6 +67,34 @@ def echo_note(note: str) -> str:
 def word_count(text: str) -> str:
     """Conta quantas palavras há no texto informado."""
     return f"{len(text.split())} palavra(s)."
+
+
+@mcp.tool()
+def search_knowledge_base(query: str, top_k: int = 5) -> str:
+    """Busca trechos relevantes na base de conhecimento (RAG) do projeto.
+
+    Use para responder perguntas sobre o projeto/documentação com base em fatos
+    recuperados, em vez de adivinhar. Retorna trechos numerados, cada um com a
+    fonte (arquivo/URI) — cite a fonte na resposta. Se nada for encontrado, diga
+    que não há informação na base; não invente.
+
+    query: pergunta ou termos de busca em linguagem natural.
+    top_k: quantos trechos retornar (1-10). Padrão: 5.
+    """
+    kb_id = os.environ.get("KNOWLEDGE_BASE_ID", "").strip()
+    if not kb_id:
+        # Degradação graciosa: sem KB configurada, a tool não quebra o loop.
+        return "RAG indisponível: KNOWLEDGE_BASE_ID não configurado."
+    text = query.strip()
+    if not text:
+        return "Consulta vazia — informe uma pergunta ou termos de busca."
+    top_k = max(1, min(int(top_k), MAX_TOP_K))
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    try:
+        passages = retrieve(text, top_k, kb_id, region)
+    except RetrievalError as exc:
+        return f"Falha ao consultar a base de conhecimento: {exc}"
+    return format_passages(passages)
 
 
 def main() -> None:
