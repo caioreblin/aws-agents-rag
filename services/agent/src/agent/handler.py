@@ -15,12 +15,14 @@ from typing import Any
 from agent.config import load_config
 from agent.logging_config import get_logger, log
 from agent.loop import run_agent
+from agent.memory import MemoryRepository, Message
 
 logger = get_logger("agent.handler")
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     correlation_id = _correlation_id(event)
+    config = load_config()
 
     try:
         payload = _parse_body(event)
@@ -33,15 +35,54 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         log(logger, "warning", "campo 'message' ausente", correlation_id)
         return _response(400, {"error": "Campo 'message' é obrigatório."}, correlation_id)
 
-    log(logger, "info", "agent.request", correlation_id, message_len=len(message))
+    # Memória escopada ao usuário (sub do JWT) + conversa (do corpo).
+    sub = _user_sub(event)
+    conversation_id = str(payload.get("conversationId") or "default")
+    repo = MemoryRepository(config.memory_table, config.region)
+    history = _load_history(repo, sub, conversation_id, config.history_limit, correlation_id)
+
+    log(logger, "info", "agent.request", correlation_id,
+        message_len=len(message), conversation_id=conversation_id, history=len(history))
     try:
-        reply = run_agent(message, correlation_id, load_config())
+        reply = run_agent(message, correlation_id, config, history=history)
     except Exception:  # noqa: BLE001 — fronteira: nada de 500 cru para o cliente
         log(logger, "error", "erro ao executar o agente", correlation_id, exc_info=True)
         return _response(500, {"error": "Erro interno ao processar a mensagem."}, correlation_id)
 
+    # Grava o turno (não bloqueia a resposta se a memória falhar).
+    _save_turn(repo, sub, conversation_id, "user", message, correlation_id)
+    _save_turn(repo, sub, conversation_id, "assistant", reply, correlation_id)
+
     log(logger, "info", "agent.response", correlation_id, reply_len=len(reply))
     return _response(200, {"reply": reply}, correlation_id)
+
+
+def _user_sub(event: dict[str, Any]) -> str:
+    """Extrai o `sub` do usuário dos claims do JWT (fallback local)."""
+    try:
+        return str(event["requestContext"]["authorizer"]["jwt"]["claims"]["sub"])
+    except (KeyError, TypeError):
+        return "local-user"
+
+
+def _load_history(
+    repo: MemoryRepository, sub: str, conversation_id: str, limit: int, correlation_id: str
+) -> list[Message]:
+    try:
+        return repo.load_recent(sub, conversation_id, limit)
+    except Exception:  # noqa: BLE001 — memória é best-effort; não bloqueia a resposta
+        log(logger, "warning", "falha ao carregar histórico", correlation_id, exc_info=True)
+        return []
+
+
+def _save_turn(
+    repo: MemoryRepository, sub: str, conversation_id: str, role: str, content: str,
+    correlation_id: str,
+) -> None:
+    try:
+        repo.save_turn(sub, conversation_id, role, content)
+    except Exception:  # noqa: BLE001
+        log(logger, "warning", "falha ao gravar memória", correlation_id, exc_info=True)
 
 
 def _parse_body(event: dict[str, Any]) -> dict[str, Any]:

@@ -2,6 +2,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { FoundationStack } from '../lib/foundation-stack';
 import { AgentStack } from '../lib/agent-stack';
+import { MemoryRagStack } from '../lib/memory-rag-stack';
 
 const app = new cdk.App();
 
@@ -20,4 +21,9 @@ new FoundationStack(app, 'FoundationStack', {
 new AgentStack(app, 'AgentStack', {
   env,
   description: 'Fase 1 — agente v1: Cognito (auth) + Lambda do agente + HTTP API protegido',
+});
+
+new MemoryRagStack(app, 'MemoryRagStack', {
+  env,
+  description: 'Fase 2 — memória (DynamoDB) + RAG (S3 + Bedrock Knowledge Base)',
 });

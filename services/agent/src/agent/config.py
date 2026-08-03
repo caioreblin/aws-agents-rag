@@ -28,6 +28,8 @@ class AgentConfig:
     temperature: float
     bedrock_mock: bool
     mcp_command: str
+    memory_table: str
+    history_limit: int
     mcp_args: list[str] = field(default_factory=list)
 
 
@@ -42,6 +44,9 @@ def load_config() -> AgentConfig:
         max_iterations=int(os.getenv("AGENT_MAX_ITERATIONS", "6")),
         temperature=float(os.getenv("AGENT_TEMPERATURE", "0.2")),
         bedrock_mock=_as_bool(os.getenv("BEDROCK_MOCK", "false")),
+        # Memória (DynamoDB): nome da tabela e quantas mensagens de histórico injetar.
+        memory_table=os.getenv("MEMORY_TABLE_NAME", "aws-agents-rag-memory"),
+        history_limit=int(os.getenv("AGENT_HISTORY_LIMIT", "10")),
         # Como subir o servidor MCP de conhecimento (subprocesso stdio).
         mcp_command=os.getenv("MCP_SERVER_COMMAND", sys.executable),
         mcp_args=os.getenv("MCP_SERVER_ARGS", "-m knowledge_mcp.server").split(),

@@ -19,6 +19,8 @@ function render(): void {
   app.innerHTML = `
     <header class="topbar">
       <strong>Agente v1</strong>
+      <span class="spacer"></span>
+      <button id="new" class="ghost">Nova conversa</button>
       <button id="logout" class="ghost">Sair</button>
     </header>
     <div id="messages" class="messages"></div>
@@ -27,7 +29,25 @@ function render(): void {
       <button type="submit">Enviar</button>
     </form>`;
   document.querySelector('#logout')!.addEventListener('click', () => logout());
+  document.querySelector('#new')!.addEventListener('click', newConversation);
   document.querySelector('#chat')!.addEventListener('submit', onSend);
+}
+
+/** Id da conversa atual (persistido), para a memória do agente separar sessões. */
+function conversationId(): string {
+  let id = localStorage.getItem('conversationId');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('conversationId', id);
+  }
+  return id;
+}
+
+/** Começa uma conversa nova: novo id e limpa a tela. */
+function newConversation(): void {
+  localStorage.setItem('conversationId', crypto.randomUUID());
+  const box = document.querySelector('#messages');
+  if (box) box.innerHTML = '';
 }
 
 function addMessage(role: 'user' | 'agent' | 'error', text: string): void {
@@ -54,7 +74,7 @@ async function onSend(event: Event): Promise<void> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getIdToken()}`,
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, conversationId: conversationId() }),
     });
     if (res.status === 401) {
       addMessage('error', 'Sessão expirada — faça login novamente.');

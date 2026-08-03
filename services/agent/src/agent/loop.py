@@ -26,6 +26,7 @@ from strands.models import BedrockModel
 
 from agent.config import AgentConfig, load_config
 from agent.mcp_client import build_knowledge_mcp_client
+from agent.memory import Message
 from agent.prompts import SYSTEM_PROMPT
 
 
@@ -57,11 +58,17 @@ class MaxToolCalls(HookProvider):
             )
 
 
-def run_agent(message: str, correlation_id: str, config: AgentConfig | None = None) -> str:
+def run_agent(
+    message: str,
+    correlation_id: str,
+    config: AgentConfig | None = None,
+    history: list[Message] | None = None,
+) -> str:
     """Executa o agente para uma mensagem e retorna a resposta em texto.
 
-    Descobre as tools via MCP e roda o loop (real ou mock). O `correlation_id` é
-    propagado para os logs pelo handler (Fase 1, 1.5).
+    Descobre as tools via MCP e roda o loop (real ou mock), injetando o
+    `history` (memória da conversa) no caminho real. O `correlation_id` é
+    propagado para os logs pelo handler.
     """
     config = config or load_config()
     mcp_client = build_knowledge_mcp_client(config)
@@ -69,10 +76,12 @@ def run_agent(message: str, correlation_id: str, config: AgentConfig | None = No
         tools = mcp_client.list_tools_sync()
         if config.bedrock_mock:
             return _run_mock(message, mcp_client, tools)
-        return _run_bedrock(message, tools, config)
+        return _run_bedrock(message, tools, config, history or [])
 
 
-def _run_bedrock(message: str, tools: list[Any], config: AgentConfig) -> str:
+def _run_bedrock(
+    message: str, tools: list[Any], config: AgentConfig, history: list[Message]
+) -> str:
     """Caminho de produção: Strands Agent + BedrockModel (Claude Haiku 4.5)."""
     model = BedrockModel(
         model_id=config.model_id,
@@ -84,9 +93,15 @@ def _run_bedrock(message: str, tools: list[Any], config: AgentConfig) -> str:
         model=model,
         tools=tools,
         system_prompt=SYSTEM_PROMPT,
+        messages=_to_strands_messages(history),
         hooks=[MaxToolCalls(config.max_iterations)],
     )
     return str(agent(message))
+
+
+def _to_strands_messages(history: list[Message]) -> list[dict[str, Any]]:
+    """Converte o histórico da memória para o formato de mensagens do Strands."""
+    return [{"role": m.role, "content": [{"text": m.content}]} for m in history]
 
 
 def _run_mock(message: str, mcp_client: Any, tools: list[Any]) -> str:
