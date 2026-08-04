@@ -17,3 +17,9 @@ Um arquivo por decisão, numerado. Formato: Contexto · Decisão · Consequênci
 - [0009 — Memória de conversa com DynamoDB single-table](0009-memoria-dynamodb-single-table.md)
 - [0010 — RAG com Bedrock Knowledge Base + S3 Vectors](0010-rag-bedrock-kb-s3-vectors.md)
 - [0011 — RAG como tool MCP (search_knowledge_base)](0011-rag-como-tool-mcp.md)
+
+## Notas de estudo
+
+Material de apoio ao aprendizado (não são ADRs).
+
+- [Conceitos — RAG vs. KB vs. MCP (quem faz o quê)](conceitos-rag-kb-mcp.md)
