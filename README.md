@@ -9,6 +9,14 @@ e frontend.
 
 ## Status
 
+**Fase 2 (Memória + RAG) em andamento** — memória e RAG completos em código e
+infra, ambos os stacks deployados.
+- **Memória (DynamoDB single-table)** — ✅ **provada end-to-end**: contexto entre
+  turnos e isolamento por usuário, contra a Lambda + tabela reais.
+- **RAG (Bedrock Knowledge Base + S3 Vectors)** — infra deployada e validada
+  (`CREATE_COMPLETE`); ingestão e prova com citação **pendentes da cota de
+  embeddings** (Titan V2 on-demand = 0, não-ajustável em conta nova).
+
 **Fase 1 (Agente v1) concluída** — agente com loop agêntico (Strands), tools via
 MCP, atrás de API Gateway + Cognito, deployado. Bedrock roda em **modo mock** até
 a cota de conta nova liberar (ver [spec da Fase 1](specs/phase-1-agent-v1/)).
@@ -22,6 +30,7 @@ segue **fase por fase e item por item**.
 
 - [`specs/phase-0-foundation/`](specs/phase-0-foundation/) — ✅ concluída
 - [`specs/phase-1-agent-v1/`](specs/phase-1-agent-v1/) — ✅ concluída
+- [`specs/phase-2-memory-rag/`](specs/phase-2-memory-rag/) — 🚧 memória provada; RAG pendente de cota
 
 ## Rodar (Fase 1)
 
@@ -47,8 +56,15 @@ Infra (deploy):
 ```bash
 cd infra
 aws sso login --profile poc
-cdk deploy AgentStack --profile poc   # requer Docker rodando (bundling da Lambda)
+# Memória + RAG (DynamoDB, S3, S3 Vectors, KB). --exclusively evita bundlar a
+# Lambda do AgentStack (sem Docker); o AgentStack lê os outputs deste stack.
+cdk deploy MemoryRagStack --exclusively --profile poc
+# Agente (Cognito + Lambda + HTTP API) — requer Docker (bundling da Lambda).
+cdk deploy AgentStack --exclusively --profile poc
 ```
+
+> RAG: quando a cota de embeddings liberar, subir os `.md` no bucket de docs e
+> rodar o sync da KB (item 2.9), depois virar `BEDROCK_MOCK=false` (item 2.10b).
 
 ## Arquitetura de referência (alvo)
 
